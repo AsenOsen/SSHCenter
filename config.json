@@ -1,0 +1,21 @@
+{
+	"default" : {
+		"keyfile": "",
+		"password": "",
+		"user": ""
+	},
+
+	"servers": {
+		"local": {
+			"host": "127.0.0.1"
+		},
+		"remote": {
+			"host": "8.8.8.8"
+		}
+	},
+
+	"groups": {
+		"all": ["local", "remote"],
+		"local": ["local"]
+	}
+}

@@ -1,0 +1,4 @@
+dataclasses
+dataclasses_json
+paramiko
+argparse
