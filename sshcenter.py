@@ -7,6 +7,8 @@ from typing import List
 import paramiko
 import argparse
 import re
+from multiprocessing import Pool
+from termcolor import colored
 
 @dataclass_json
 @dataclass
@@ -91,9 +93,6 @@ class SSHCenter:
 			return [name]
 		return []
 
-	def collect_server_by_names(self, server_names):
-		return dict([(name,self.config.servers.get(name)) for name in server_names])
-
 	def parse_ssh_users(self, client):
 		users = []
 		for user in client.exec(" cat .ssh/authorized_keys").split("\n"):
@@ -101,18 +100,31 @@ class SSHCenter:
 			users.append(SSHUser(r.group(1),r.group(2),r.group(3),r.group(4)))
 		return users
 
-	def list_users(self, server_names, enabled_only):
-		servers = self.collect_server_by_names(server_names)
-		for server in servers:
-			print("===== Server: " + server + " =====")
-			ssh = SSHClient(servers[server])
-			users = self.parse_ssh_users(ssh)
+	def get_ssh_users_tuple(self, server_name):
+		server = self.config.servers.get(server_name)
+		ssh = SSHClient(server)
+		users = self.parse_ssh_users(ssh)
+		return (server_name, users)
 
+	def conver_list_of_tuples_to_dict(self, list_of_tuples):
+		d = {}
+		for k,v in list_of_tuples: d[k] = v
+		return d
+
+	def list_users(self, server_names, enabled_only):
+		pool = Pool(16)
+		users = pool.map(self.get_ssh_users_tuple, server_names)
+		pool.close()
+		pool.join()
+		users = self.conver_list_of_tuples_to_dict(users)
+
+		for server_name, users in users.items():
+			print(colored("===== " + server_name + " =====", "green"))
 			if enabled_only:
 				users = filter(lambda user: user.enabled, users)
-
 			for user in users:
 				print(user)
+
 
 class SSHClient:
 
