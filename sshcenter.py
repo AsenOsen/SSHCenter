@@ -27,47 +27,6 @@ class Config:
 
 # Domain
 
-class Cli:
-
-	def __init__(self):
-		parser = argparse.ArgumentParser(description='SSH Access Center')
-		parser.add_argument('--config','-c', action="store", default="config.json", help='Config file (default: config.json)')
-		parser.add_argument('--group','-g', action="store_true", help='Group name')
-		parser.add_argument('name', help='Server or group name')
-		subparsers = parser.add_subparsers(dest="command", help='Commands')
-		list_parser = subparsers.add_parser('list', help='List users')
-		list_parser.add_argument('--enabled','-e', action="store_true", help='Enabled only users')
-		add_parser = subparsers.add_parser('add', help='Add user')
-		add_parser.add_argument('publickey', help='Public key of user')
-		add_parser.add_argument('username', help='Name of user')
-		del_parser = subparsers.add_parser('del', help='Delete user')
-		del_parser.add_argument('username', help='Name of user')
-		# todo
-		# rename parser
-		# search_user parser
-		self.args = parser.parse_args()
-		self.validate()
-
-	def validate(self):
-		if not self.args.command:
-			print("Specify command")
-			quit()
-
-	def is_list(self):
-		return self.args.command == "list"
-
-	def get_name(self):
-		return self.args.name
-
-	def get_group(self):
-		return self.args.group
-
-	def get_list_enabled_only(self):
-		return self.args.enabled
-
-	def get_config_file(self):
-		return self.args.config
-
 class SSHUser:
 
 	def __init__(self, commented, key_type, key, username):
@@ -75,6 +34,9 @@ class SSHUser:
 		self.key_type = key_type
 		self.key = key
 		self.username = username
+
+	def short_key(self):
+		return self.key[0:10] + "..." + self.key[-10:]
 
 	def __str__(self):
 		valid = "+" if self.enabled else "-"
@@ -111,19 +73,33 @@ class SSHCenter:
 		for k,v in list_of_tuples: d[k] = v
 		return d
 
-	def list_users(self, server_names, enabled_only):
+	def build_user_map(self, server_names):
 		pool = Pool(16)
 		users = pool.map(self.get_ssh_users_tuple, server_names)
 		pool.close()
 		pool.join()
-		users = self.conver_list_of_tuples_to_dict(users)
+		return self.conver_list_of_tuples_to_dict(users)
 
+	def list_users(self, server_names, enabled_only):
+		users = self.build_user_map(server_names)
 		for server_name, users in users.items():
 			print(colored("===== " + server_name + " =====", "green"))
 			if enabled_only:
 				users = filter(lambda user: user.enabled, users)
 			for user in users:
 				print(user)
+
+	def search_user(self, server_names, username, userkey, enabled_only):
+		users = self.build_user_map(server_names)
+		for server_name, users in users.items():
+			if enabled_only:
+				users = filter(lambda user: user.enabled, users)
+			if username:
+				users = filter(lambda user: user.username.find(username) > -1, users)
+			if userkey:
+				users = filter(lambda user: user.key.find(userkey) > -1, users)
+			for user in users:
+				print(colored(server_name, "green") + " | " + user.username + " : " + user.short_key())
 
 
 class SSHClient:
@@ -170,12 +146,52 @@ class SSHClient:
 		client.close()
 		return output.decode("utf-8")
 
+class Cli:
+
+	def __init__(self):
+		parser = argparse.ArgumentParser(description='SSH Access Center')
+		parser.add_argument('--config','-c', action="store", default="config.json", help='Config file (default: config.json)')
+		parser.add_argument('--group','-g', action="store_true", help='Group name')
+		parser.add_argument('name', help='Server or group name')
+		subparsers = parser.add_subparsers(dest="command", help='Commands')
+		# list
+		list_parser = subparsers.add_parser('list', help='List users')
+		list_parser.add_argument('--enabled','-e', action="store_true", help='Enabled only users')
+		# search
+		search_parser = subparsers.add_parser('search', help='Search user')
+		search_parser.add_argument('--user','-u', help='User name')
+		search_parser.add_argument('--key','-k', help='Key part')
+		search_parser.add_argument('--enabled','-e', action="store_true", help='Enabled only users')
+		# add
+		add_parser = subparsers.add_parser('add', help='Add user')
+		add_parser.add_argument('publickey', help='Public key of user')
+		add_parser.add_argument('username', help='Name of user')
+		# del
+		del_parser = subparsers.add_parser('del', help='Delete user')
+		del_parser.add_argument('username', help='Name of user')
+		# todo
+		# rename parser
+		# search_user parser
+		self.args = parser.parse_args()
+		self.validate()
+
+	def validate(self):
+		if not self.args.command:
+			print("Specify command")
+			quit()
+
+	def is_list(self):
+		return self.args.command == "list"
+
+	def is_search(self):
+		return self.args.command == "search"
+
 # Logic
 
 cli = Cli()
 
 # parse config
-with open(cli.get_config_file()) as data:
+with open(cli.args.config) as data:
 	config = Config.from_json(data.read())
 	# merge default values
 	for server in config.servers:
@@ -184,7 +200,9 @@ with open(cli.get_config_file()) as data:
 				config.servers[server].__dict__[k] = v
 
 ssh_center = SSHCenter(config)
-server_names = ssh_center.get_server_names(cli.get_name(), cli.get_group());
+server_names = ssh_center.get_server_names(cli.args.name, cli.args.group)
 
 if cli.is_list():
-	ssh_center.list_users(server_names, cli.get_list_enabled_only())
+	ssh_center.list_users(server_names, cli.args.enabled)
+elif cli.is_search():
+	ssh_center.search_user(server_names, cli.args.user, cli.args.key, cli.args.enabled)
