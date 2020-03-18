@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import json
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
@@ -57,7 +59,7 @@ class SSHCenter:
 
 	def parse_ssh_users(self, client):
 		users = []
-		for user in client.exec(" cat .ssh/authorized_keys").split("\n"):
+		for user in client.exec(" cat ~/.ssh/authorized_keys").split("\n"):
 			r = re.search(r"(#)?\s*([^\s]+)\s+([^\s]+)\s+(.*)", user)
 			users.append(SSHUser(r.group(1),r.group(2),r.group(3),r.group(4)))
 		return users
@@ -149,7 +151,7 @@ class SSHClient:
 class Cli:
 
 	def __init__(self):
-		parser = argparse.ArgumentParser(description='SSH Access Center')
+		parser = argparse.ArgumentParser(description='SSH Users Center')
 		parser.add_argument('--config','-c', action="store", default="config.json", help='Config file (default: config.json)')
 		parser.add_argument('--group','-g', action="store_true", help='Group name')
 		parser.add_argument('name', help='Server or group name')
@@ -169,9 +171,6 @@ class Cli:
 		# del
 		del_parser = subparsers.add_parser('del', help='Delete user')
 		del_parser.add_argument('username', help='Name of user')
-		# todo
-		# rename parser
-		# search_user parser
 		self.args = parser.parse_args()
 		self.validate()
 

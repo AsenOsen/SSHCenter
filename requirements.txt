@@ -2,3 +2,4 @@ dataclasses
 dataclasses_json
 paramiko
 argparse
+termcolor

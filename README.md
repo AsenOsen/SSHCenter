@@ -1,24 +1,31 @@
 ### What is it?
 
-This is a simple SSH key management tool which able to do the following operations over described servers:
+This is a simple SSH users management tool which able to do following operations over described servers:
 
-* list users
-* add users
-* delete users
+* list SSH users
+* search over SSH users
+* add SSH users (todo)
+* delete SSH users (todo)
+
+All SSH operations performed by the user you log in. 
+This tool parses `~/.ssh/authorized_keys` and operates its contents due to selected operation.
 
 ### How it works?
 
 It is total CLI:
 
 ```
-usage: sshcenter.py [-h] [--config CONFIG] [--group] name {list,add,del} ...
+usage: sshcenter.py [-h] [--config CONFIG] [--group]
+                    name {list,search,add,del} ...
 
-SSH Access Center
+SSH Users Center
 
 positional arguments:
   name                  Server or group name
-  {list,add,del}        Commands
+  {list,search,add,del}
+                        Commands
     list                List users
+    search              Search user
     add                 Add user
     del                 Delete user
 
@@ -27,9 +34,10 @@ optional arguments:
   --config CONFIG, -c CONFIG
                         Config file (default: config.json)
   --group, -g           Group name
+
 ```
 
-### Config format
+### Servers description format (config.json)
 
 ```
 {
@@ -53,4 +61,18 @@ optional arguments:
 		"local": ["local"]
 	}
 }
+```
+
+### Examples
+
+List all descibed users on server `my_server_1`:
+
+```
+python3 sshcenter.py my_server_1 list
+```
+
+Search user `rookie` whoose public key has `*pub_key*` substring on each server in group `my_group_1`:
+
+```
+python3 sshcenter.py -g my_group_1 search -u rookie -k pub_key
 ```
