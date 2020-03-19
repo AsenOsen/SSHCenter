@@ -27,6 +27,15 @@ class Config:
 	servers: Dict[str, Server]
 	groups: Dict[str, List[str]]
 
+	def get(config):
+		config = Config.from_json(config)
+		# merge default values
+		for server in config.servers:
+			for k,v in config.default.__dict__.items():
+				if config.servers[server].__dict__[k] is None:
+					config.servers[server].__dict__[k] = v
+		return config
+
 # Domain
 
 class SSHUser:
@@ -185,23 +194,22 @@ class Cli:
 	def is_search(self):
 		return self.args.command == "search"
 
-# Logic
+# EntryPoint
 
-cli = Cli()
+if __name__ == "__main__":
 
-# parse config
-with open(cli.args.config) as data:
-	config = Config.from_json(data.read())
-	# merge default values
-	for server in config.servers:
-		for k,v in config.default.__dict__.items():
-			if config.servers[server].__dict__[k] is None:
-				config.servers[server].__dict__[k] = v
+	cli = Cli()
 
-ssh_center = SSHCenter(config)
-server_names = ssh_center.get_server_names(cli.args.name, cli.args.group)
+	# parse config
+	with open(cli.args.config) as data: 
+		config = Config.get(data.read())
 
-if cli.is_list():
-	ssh_center.list_users(server_names, cli.args.enabled)
-elif cli.is_search():
-	ssh_center.search_user(server_names, cli.args.user, cli.args.key, cli.args.enabled)
+	# ssh
+	ssh_center = SSHCenter(config)
+	server_names = ssh_center.get_server_names(cli.args.name, cli.args.group)
+
+	# command selector
+	if cli.is_list():
+		ssh_center.list_users(server_names, cli.args.enabled)
+	elif cli.is_search():
+		ssh_center.search_user(server_names, cli.args.user, cli.args.key, cli.args.enabled)
