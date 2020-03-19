@@ -41,7 +41,7 @@ class Config:
 class SSHUser:
 
 	def __init__(self, commented, key_type, key, username):
-		self.enabled = commented is None
+		self.enabled = commented
 		self.key_type = key_type
 		self.key = key
 		self.username = username
@@ -70,29 +70,52 @@ class SSHCenter:
 		users = []
 		for user in client.exec(" cat ~/.ssh/authorized_keys").split("\n"):
 			r = re.search(r"(#)?\s*([^\s]+)\s+([^\s]+)\s+(.*)", user)
-			users.append(SSHUser(r.group(1),r.group(2),r.group(3),r.group(4)))
+			users.append(SSHUser(r.group(1) is None,r.group(2),r.group(3),r.group(4)))
 		return users
+
+	def store_ssh_users(self, client, users):
+		authorized_keys_contents = ""
+		for user in users:
+			commented = "#" if not user.enabled else ""
+			authorized_keys_contents += "%s%s %s %s\n" % (commented, user.key_type, user.key, user.username)
+		original_authorized_keys_contents = client.exec(" cat ~/.ssh/authorized_keys")
+		client.exec(" echo \"%s\" > ~/.ssh/authorized_keys" % (authorized_keys_contents))
+		if not client.test():
+			client.exec(" echo \"%s\" > ~/.ssh/authorized_keys" % (original_authorized_keys_contents))
+
+	def store_ssh_users_tuple(self, server_name_users_tuple):
+		server_name = server_name_users_tuple[0]
+		users = server_name_users_tuple[1]
+		server = self.config.servers.get(server_name)
+		ssh = SSHClient(server, server_name)
+		self.store_ssh_users(ssh, users)
 
 	def get_ssh_users_tuple(self, server_name):
 		server = self.config.servers.get(server_name)
-		ssh = SSHClient(server)
+		ssh = SSHClient(server, server_name)
 		users = self.parse_ssh_users(ssh)
 		return (server_name, users)
 
-	def conver_list_of_tuples_to_dict(self, list_of_tuples):
+	def convert_list_of_tuples_to_dict(self, list_of_tuples):
 		d = {}
 		for k,v in list_of_tuples: d[k] = v
 		return d
 
-	def build_user_map(self, server_names):
+	def get_users_map(self, server_names):
 		pool = Pool(16)
 		users = pool.map(self.get_ssh_users_tuple, server_names)
 		pool.close()
 		pool.join()
-		return self.conver_list_of_tuples_to_dict(users)
+		return self.convert_list_of_tuples_to_dict(users)
+
+	def store_users_map(self, users):
+		pool = Pool(16)
+		users = pool.map(self.store_ssh_users_tuple, users.items())
+		pool.close()
+		pool.join()
 
 	def list_users(self, server_names, enabled_only):
-		users = self.build_user_map(server_names)
+		users = self.get_users_map(server_names)
 		for server_name, users in users.items():
 			print(colored("===== " + server_name + " =====", "green"))
 			if enabled_only:
@@ -101,7 +124,7 @@ class SSHCenter:
 				print(user)
 
 	def search_user(self, server_names, username, userkey, enabled_only):
-		users = self.build_user_map(server_names)
+		users = self.get_users_map(server_names)
 		for server_name, users in users.items():
 			if enabled_only:
 				users = filter(lambda user: user.enabled, users)
@@ -112,11 +135,24 @@ class SSHCenter:
 			for user in users:
 				print(colored(server_name, "green") + " | " + user.username + " : " + user.short_key())
 
+	def add_user(self, server_names, publickey, username, keytype):
+		users = self.get_users_map(server_names)
+		new_user = SSHUser(True, keytype, publickey, username)
+		for server_name, server_users in users.items():
+			users[server_name] = server_users + [new_user]
+		self.store_users_map(users)
+
 
 class SSHClient:
 
-	def __init__(self, server):
+	def __init__(self, server, name):
 		self.server = server 
+		self.name = name
+		self.client = None
+
+	def __del__(self):
+		if self.client:
+			self.client.close()
 
 	def ssh_obtain_key(self):
 		if self.server.keyfile:
@@ -126,36 +162,39 @@ class SSHClient:
 				try:
 					return paramiko.RSAKey.from_private_key_file(self.server.keyfile)
 				except:
-					return paramiko.RSAKey.from_private_key_file(self.server.keyfile, self.ssh_obtain_password())
+					return None
 		else:
 			return None
-
-	def ssh_obtain_password(self):
-		if self.server.password:
-			return self.server.password
-		else:
-			return input("Password:")
 
 	def ssh_get_client(self):
 		client = paramiko.SSHClient()
 		client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 		key = self.ssh_obtain_key()
+		password = self.server.password
 		if key:
 			client.connect(hostname = self.server.host, username = self.server.user, pkey = key)
-		else:
-			password = self.ssh_obtain_password()
+		elif password:
 			client.connect(hostname = self.server.host, username = self.server.user, password = password)
+		else:
+			raise Exception("Authentification failed for server: " + self.name)
 		return client
 
 	def exec(self, cmd):
-		client = self.ssh_get_client()
-		stdin , stdout, stderr = client.exec_command(cmd)
+		if not self.client:
+			self.client = self.ssh_get_client()
+		stdin , stdout, stderr = self.client.exec_command(cmd)
 		output = stdout.read().strip()
 		errors = stderr.read().strip()
 		if len(errors)>0:
 			print(errors)
-		client.close()
 		return output.decode("utf-8")
+
+	def test(self):
+		try:
+			self.ssh_get_client()
+			return True
+		except:
+			return False
 
 class Cli:
 
@@ -177,6 +216,7 @@ class Cli:
 		add_parser = subparsers.add_parser('add', help='Add user')
 		add_parser.add_argument('publickey', help='Public key of user')
 		add_parser.add_argument('username', help='Name of user')
+		add_parser.add_argument('--keytype','-t', action="store", default="ssh-rsa", help='Type of publickey (default: ssh-rsa)')
 		# del
 		del_parser = subparsers.add_parser('del', help='Delete user')
 		del_parser.add_argument('username', help='Name of user')
@@ -193,6 +233,9 @@ class Cli:
 
 	def is_search(self):
 		return self.args.command == "search"
+
+	def is_add(self):
+		return self.args.command == "add"
 
 # EntryPoint
 
@@ -213,3 +256,5 @@ if __name__ == "__main__":
 		ssh_center.list_users(server_names, cli.args.enabled)
 	elif cli.is_search():
 		ssh_center.search_user(server_names, cli.args.user, cli.args.key, cli.args.enabled)
+	elif cli.is_add():
+		ssh_center.add_user(server_names, cli.args.publickey, cli.args.username, cli.args.keytype)

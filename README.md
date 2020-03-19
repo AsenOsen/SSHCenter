@@ -4,7 +4,7 @@ This is a simple SSH users management tool which able to do following operations
 
 * list SSH users
 * search over SSH users
-* add SSH users (todo)
+* add SSH users
 * delete SSH users (todo)
 
 All SSH operations performed by the user you log in. 
@@ -75,4 +75,10 @@ Search user `rookie` whoose public key has `*pub_key*` substring on each server 
 
 ```
 python3 sshcenter.py -g my_group_1 search -u rookie -k pub_key
+```
+
+Add user public key `AAAAB3Nza...CtBYmxQ9Nb` of user `Rookie@Gmail.com` to each server in group `local`:
+
+```
+python3 sshcenter.py -g local add Rookie@Gmail.com AAAAB3Nza...CtBYmxQ9Nb
 ```
