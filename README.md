@@ -5,9 +5,9 @@ This is a simple SSH users management tool which able to do following operations
 * list SSH users
 * search over SSH users
 * add SSH users
-* delete SSH users (todo)
+* delete SSH users
 
-All SSH operations performed by the user you log in. 
+All SSH operations performed by the user you log in.  
 This tool parses `~/.ssh/authorized_keys` and operates its contents due to selected operation.
 
 ### How it works?
@@ -65,20 +65,26 @@ optional arguments:
 
 ### Examples
 
-List all descibed users on server `my_server_1`:
+List all descibed users on server `remote`:
 
 ```
-python3 sshcenter.py my_server_1 list
+python3 sshcenter.py remote list
 ```
 
-Search user `rookie` whoose public key has `*pub_key*` substring on each server in group `my_group_1`:
+Search user `Rookie` whoose public key has `*pub_key*` substring on each server in group `all` (servers `local` and `remote`):
 
 ```
-python3 sshcenter.py -g my_group_1 search -u rookie -k pub_key
+python3 sshcenter.py -g all search -u Rookie -k pub_key
 ```
 
 Add user public key `AAAAB3Nza...CtBYmxQ9Nb` of user `Rookie@Gmail.com` to each server in group `local`:
 
 ```
 python3 sshcenter.py -g local add Rookie@Gmail.com AAAAB3Nza...CtBYmxQ9Nb
+```
+
+Delele user `Rookie@Gmail.com` from `local` server:
+
+```
+python3 sshcenter.py local del Rookie@Gmail.com
 ```

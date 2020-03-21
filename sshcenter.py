@@ -46,12 +46,10 @@ class SSHUser:
 		self.key = key
 		self.username = username
 
-	def short_key(self):
-		return self.key[0:10] + "..." + self.key[-10:]
-
 	def __str__(self):
-		valid = "+" if self.enabled else "-"
-		return "User: %s (%s)" % (self.username, valid)
+		valid = colored("[+]", "green") if self.enabled else colored("[X]", "red")
+		short_key = self.key[0:10] + "..." + self.key[-10:]
+		return "%sUser: %s (%s)" % (valid, self.username, short_key)
 
 
 class SSHCenter:
@@ -101,30 +99,30 @@ class SSHCenter:
 		for k,v in list_of_tuples: d[k] = v
 		return d
 
-	def get_users_map(self, server_names):
+	def get_users_dict(self, server_names):
 		pool = Pool(16)
 		users = pool.map(self.get_ssh_users_tuple, server_names)
 		pool.close()
 		pool.join()
 		return self.convert_list_of_tuples_to_dict(users)
 
-	def store_users_map(self, users):
+	def store_users_dict(self, users):
 		pool = Pool(16)
 		users = pool.map(self.store_ssh_users_tuple, users.items())
 		pool.close()
 		pool.join()
 
 	def list_users(self, server_names, enabled_only):
-		users = self.get_users_map(server_names)
+		users = self.get_users_dict(server_names)
 		for server_name, users in users.items():
-			print(colored("===== " + server_name + " =====", "green"))
+			print(colored("===== " + server_name + " =====", "yellow"))
 			if enabled_only:
 				users = filter(lambda user: user.enabled, users)
 			for user in users:
 				print(user)
 
 	def search_user(self, server_names, username, userkey, enabled_only):
-		users = self.get_users_map(server_names)
+		users = self.get_users_dict(server_names)
 		for server_name, users in users.items():
 			if enabled_only:
 				users = filter(lambda user: user.enabled, users)
@@ -133,14 +131,22 @@ class SSHCenter:
 			if userkey:
 				users = filter(lambda user: user.key.find(userkey) > -1, users)
 			for user in users:
-				print(colored(server_name, "green") + " | " + user.username + " : " + user.short_key())
+				print(colored(server_name, "yellow") + " | " + str(user))
 
 	def add_user(self, server_names, publickey, username, keytype):
-		users = self.get_users_map(server_names)
+		users = self.get_users_dict(server_names)
 		new_user = SSHUser(True, keytype, publickey, username)
 		for server_name, server_users in users.items():
 			users[server_name] = server_users + [new_user]
-		self.store_users_map(users)
+		self.store_users_dict(users)
+
+	def del_user(self, server_names, username):
+		users = self.get_users_dict(server_names)
+		for server_name, server_users in users.items():
+			for user in server_users:
+				if user.username == username:
+					server_users.remove(user)
+		self.store_users_dict(users)
 
 
 class SSHClient:
@@ -225,8 +231,7 @@ class Cli:
 
 	def validate(self):
 		if not self.args.command:
-			print("Specify command")
-			quit()
+			quit("Specify command")
 
 	def is_list(self):
 		return self.args.command == "list"
@@ -236,6 +241,9 @@ class Cli:
 
 	def is_add(self):
 		return self.args.command == "add"
+
+	def is_del(self):
+		return self.args.command == "del"
 
 # EntryPoint
 
@@ -258,3 +266,5 @@ if __name__ == "__main__":
 		ssh_center.search_user(server_names, cli.args.user, cli.args.key, cli.args.enabled)
 	elif cli.is_add():
 		ssh_center.add_user(server_names, cli.args.publickey, cli.args.username, cli.args.keytype)
+	elif cli.is_del():
+		ssh_center.del_user(server_names, cli.args.username)
