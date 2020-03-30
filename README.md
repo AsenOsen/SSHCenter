@@ -6,6 +6,7 @@ This is a simple SSH users management tool which able to do following operations
 * search over SSH users
 * add SSH users
 * delete SSH users
+* set name (rename) SSH users
 
 All SSH operations performed by the user you log in.  
 This tool parses `~/.ssh/authorized_keys` and operates its contents due to selected operation.
@@ -16,18 +17,19 @@ It is total CLI:
 
 ```
 usage: sshcenter.py [-h] [--config CONFIG] [--group]
-                    name {list,search,add,del} ...
+                    name {list,search,add,del,setname} ...
 
 SSH Users Center
 
 positional arguments:
   name                  Server or group name
-  {list,search,add,del}
+  {list,search,add,del,setname}
                         Commands
     list                List users
     search              Search user
     add                 Add user
     del                 Delete user
+    setname             Set username for public key
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -87,4 +89,10 @@ Delele user `Rookie@Gmail.com` from `local` server:
 
 ```
 python3 sshcenter.py local del Rookie@Gmail.com
+```
+
+Rename user `Rookie@Gmail.com` on all servers:
+
+```
+python3 sshcenter.py -g all setname AAAAB3NzaC Expert@Gmail.com
 ```

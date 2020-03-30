@@ -129,15 +129,15 @@ class SSHCenter:
 			for user in users:
 				print(user)
 
-	def search_user(self, server_names, username, userkey, enabled_only):
+	def search_user(self, server_names, username, publickey, enabled_only):
 		users = self.get_users_dict(server_names)
 		for server_name, users in users.items():
 			if enabled_only:
 				users = filter(lambda user: user.enabled, users)
 			if username:
 				users = filter(lambda user: user.username.find(username) > -1, users)
-			if userkey:
-				users = filter(lambda user: user.key.find(userkey) > -1, users)
+			if publickey:
+				users = filter(lambda user: user.key.find(publickey) > -1, users)
 			for user in users:
 				print(colored(server_name, "yellow") + " | " + str(user))
 
@@ -154,6 +154,14 @@ class SSHCenter:
 			for user in server_users:
 				if user.username == username:
 					server_users.remove(user)
+		self.store_users_dict(users)
+
+	def set_name_for_user(self, server_names, publickey, username):
+		users = self.get_users_dict(server_names)
+		for server_name, server_users in users.items():
+			for user in server_users:
+				if user.key.find(publickey) > -1:
+					user.username = username
 		self.store_users_dict(users)
 
 
@@ -223,17 +231,21 @@ class Cli:
 		list_parser.add_argument('--enabled','-e', action="store_true", help='Enabled only users')
 		# search
 		search_parser = subparsers.add_parser('search', help='Search user')
-		search_parser.add_argument('--user','-u', help='User name')
-		search_parser.add_argument('--key','-k', help='Key part')
+		search_parser.add_argument('--user','-u', help='User name (can be partial)')
+		search_parser.add_argument('--key','-k', help='Public key (can be partial)')
 		search_parser.add_argument('--enabled','-e', action="store_true", help='Enabled only users')
 		# add
 		add_parser = subparsers.add_parser('add', help='Add user')
-		add_parser.add_argument('publickey', help='Public key of user')
+		add_parser.add_argument('key', help='Public key of user')
 		add_parser.add_argument('username', help='Name of user')
 		add_parser.add_argument('--keytype','-t', action="store", default="ssh-rsa", help='Type of publickey (default: ssh-rsa)')
 		# del
 		del_parser = subparsers.add_parser('del', help='Delete user')
 		del_parser.add_argument('username', help='Name of user')
+		# setname
+		setname_parser = subparsers.add_parser('setname', help='Set username for public key')
+		setname_parser.add_argument('key', help='Public key of user (can be partial)')
+		setname_parser.add_argument('username', help='New name for the user')
 		self.args = parser.parse_args()
 		self.validate()
 
@@ -252,6 +264,9 @@ class Cli:
 
 	def is_del(self):
 		return self.args.command == "del"
+
+	def is_setname(self):
+		return self.args.command == "setname"
 
 # EntryPoint
 
@@ -273,6 +288,8 @@ if __name__ == "__main__":
 	elif cli.is_search():
 		ssh_center.search_user(server_names, cli.args.user, cli.args.key, cli.args.enabled)
 	elif cli.is_add():
-		ssh_center.add_user(server_names, cli.args.publickey, cli.args.username, cli.args.keytype)
+		ssh_center.add_user(server_names, cli.args.key, cli.args.username, cli.args.keytype)
 	elif cli.is_del():
 		ssh_center.del_user(server_names, cli.args.username)
+	elif cli.is_setname():
+		ssh_center.set_name_for_user(server_names, cli.args.key, cli.args.username)
