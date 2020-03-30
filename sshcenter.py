@@ -57,9 +57,17 @@ class SSHCenter:
 	def __init__(self, config):
 		self.config = config
 
+	def expand_server_names(self, patterns):
+		expanded = set()
+		for name in self.config.servers:
+			for pattern in patterns:
+				if re.match(pattern, name):
+					expanded.add(name)
+		return list(expanded)
+
 	def get_server_names(self, name, group):
 		if group and name in self.config.groups:
-			return self.config.groups[name] 
+			return self.expand_server_names(self.config.groups[name])
 		if not group and name in self.config.servers:
 			return [name]
 		return []

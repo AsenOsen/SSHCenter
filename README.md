@@ -57,7 +57,7 @@ optional arguments:
 	},
 
 	"groups": {
-		"all": ["local", "remote"],
+		"all": [".*"],
 		"local": ["local"]
 	}
 }
@@ -71,7 +71,7 @@ List all descibed users on server `remote`:
 python3 sshcenter.py remote list
 ```
 
-Search user `Rookie` whoose public key has `*pub_key*` substring on each server in group `all` (servers `local` and `remote`):
+Search user `Rookie` whoose public key has `*pub_key*` substring on each server in group `all` (all servers: `local` and `remote`):
 
 ```
 python3 sshcenter.py -g all search -u Rookie -k pub_key

@@ -15,7 +15,7 @@
 	},
 
 	"groups": {
-		"all": ["local", "remote"],
+		"all": [".*"],
 		"local": ["local"]
 	}
 }
