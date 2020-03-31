@@ -74,7 +74,9 @@ class SSHCenter:
 
 	def parse_ssh_users(self, client):
 		users = []
-		for user in client.exec(" cat ~/.ssh/authorized_keys").split("\n"):
+		user_strings =  client.exec(" cat ~/.ssh/authorized_keys").split("\n")
+		user_strings = filter(lambda s: len(s.strip()) > 0, user_strings)
+		for user in user_strings:
 			r = re.search(r"(#)?\s*([^\s]+)\s+([^\s]+)\s+(.*)", user)
 			users.append(SSHUser(r.group(1) is None,r.group(2),r.group(3),r.group(4)))
 		return users
